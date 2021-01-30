@@ -10,6 +10,8 @@ from os import mkdir
 
 def prepare_main(exports: List[Tuple[int, str]], libname: str) -> str:
     main_code = """\
+#include <Windows.h>
+
 extern "C" UINT_PTR ProcList[{count}] = {{0}};
 
 """.format(count=len(exports))
@@ -30,13 +32,15 @@ LPCSTR ImportNames[] = {
 """.format(name=export[1])
 
     main_code += """\
-}
+};
 
 TCHAR lib_path[MAX_PATH];
 HMODULE real_dll;
 
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
+    DisableThreadLibraryCalls(instance);
+
     if (reason != DLL_PROCESS_ATTACH) {
         return TRUE;
     }
@@ -46,12 +50,16 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 
     main_code += """\
     lstrcat(lib_path, TEXT("\\\\{lib}"));
-    real_dll = LoadLibrary(lib_path);
-    for (int i = 0; i < {count}; i++)""".format(count=len(exports),
-                                                lib=libname)
+""".format(lib=libname)
 
     main_code += """\
- {
+    real_dll = LoadLibrary(lib_path);
+    if (!real_dll) {
+        MessageBoxA(NULL, "Can't load original DLL", "Error", NULL);
+        return FALSE;
+    }
+
+    for (int i = 0; i < _countof(ImportNames); i++) {
         ProcList[i] = GetProcAddress(real_dll , ImportNames[i]);
     }
 
@@ -91,6 +99,10 @@ extern ProcList:QWORD
     jmp ProcList[{index} * 8]
 {name}_wrapper endp
 """.format(index=i, name=export[1])
+
+    asm_code += """\
+end
+"""
 
     return asm_code
 
