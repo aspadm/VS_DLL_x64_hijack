@@ -60,7 +60,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
     }
 
     for (int i = 0; i < _countof(ImportNames); i++) {
-        ProcList[i] = GetProcAddress(real_dll , ImportNames[i]);
+        ProcList[i] = (UINT_PTR)GetProcAddress(real_dll , ImportNames[i]);
     }
 
     // You can place your code here, as example:
