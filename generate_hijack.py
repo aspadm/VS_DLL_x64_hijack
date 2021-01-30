@@ -107,23 +107,37 @@ end
     return asm_code
 
 
+def prepare_vcxproj(libname: str, projname: str) -> str:
+    with open("sample.vcxproj", "r") as f:
+        result = f.read()
+
+    result = result.replace("__ASM_LIB__", libname)
+    result = result.replace("__PROJECT_NAME__", projname)
+    result = result.replace("__PROJECT_NAME_U__",
+                            projname.replace(" ", "_").upper())
+
+    return result
+
+
 if __name__ == "__main__":
     if len(argv) != 3:
         print("Usage: generate_hijack.py path_to_lib.dll VS_project_name")
         exit(-1)
 
-    if not op.isfile(argv[1]):
-        print("DLL file {} not exist".format(argv[1]))
+    _, libpath, projname = argv
+
+    if not op.isfile(libpath):
+        print("DLL file {} not exist".format(libpath))
         exit(-1)
 
-    dll = pe.PE(name=argv[1], fast_load=False)
+    dll = pe.PE(name=libpath, fast_load=False)
 
     if dll.FILE_HEADER.Machine != 0x8664:
         print("DLL file architecture is not x64")
         exit(-1)
 
-    if not op.isdir(argv[2]):
-        mkdir(argv[2])
+    if not op.isdir(projname):
+        mkdir(projname)
 
     tmp: List[Tuple[int, str]] = [
         (exp.ordinal, exp.name.decode("utf-8"))
@@ -131,12 +145,17 @@ if __name__ == "__main__":
         ]
     tmp.sort()
 
-    with open(op.join(argv[2], "main.cpp"), "w") as f:
-        f.write(prepare_main(tmp, op.splitext(op.split(argv[1])[1])[0]))
+    libname = op.splitext(op.split(libpath)[1])[0]
 
-    with open(op.join(argv[2], op.splitext(op.split(argv[1])[1])[0] + ".asm"),
+    with open(op.join(projname, "main.cpp"), "w") as f:
+        f.write(prepare_main(tmp, libname))
+
+    with open(op.join(projname, libname + ".asm"),
               "w") as f:
         f.write(prepare_asm(tmp))
 
-    with open(op.join(argv[2], "library.def"), "w") as f:
+    with open(op.join(projname, "library.def"), "w") as f:
         f.write(prepare_defs(tmp))
+
+    with open(op.join(projname, projname + ".vcxproj"), "w") as f:
+        f.write(prepare_vcxproj(libname, projname))
